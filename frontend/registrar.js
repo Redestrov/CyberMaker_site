@@ -1,7 +1,7 @@
 // --- API base configuration: at deploy, set window.__API_URL to your Railway API URL ---
 const API_BASE = (typeof window !== 'undefined' && window.__API_URL)
   ? window.__API_URL
-  : (location.hostname.includes('localhost') ? 'http://localhost:3000' : 'mysql://root:XfeZfgvwFvWZAIJjbBUuDwtBNmThajEu@nozomi.proxy.rlwy.net:14820/railway');
+  : (location.hostname.includes('localhost') ? 'http://localhost:3000' : 'mysql://root:YstgffdXPVDJlSljOJPiOrKRwFOaObsg@yamanote.proxy.rlwy.net:51980/railway');
 // --- end config ---
 
 
