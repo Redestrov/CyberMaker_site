@@ -16,7 +16,7 @@ document.getElementById("form-registro").addEventListener("submit", async e => {
   // função auxiliar para enviar ao backend
   async function enviarRegistro(fotoBase64 = null) {
     try {
-      const res = await fetch(`${API_BASE}/api/registrar`, {
+      const res = await fetch(`${API_BASE}https://cybermakersite-production.up.railway.app/api/registrar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, email, senha, foto: fotoBase64 })
