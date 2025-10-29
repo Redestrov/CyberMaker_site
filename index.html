@@ -138,7 +138,7 @@
     alert("Você saiu da conta!");
     window.location.href = "index.html";
     //Atualizar para offline remova se nao for
-    fetch("/api/usuarios/online", {
+    fetch("https://cybermakersite-production.up.railway.app/api/usuarios/online", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ usuario_id: usuarioLogado.id })

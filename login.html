@@ -36,7 +36,7 @@
   const senha = document.getElementById("password").value.trim();
 
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch("https://cybermakersite-production.up.railway.app/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, senha })
@@ -48,7 +48,7 @@
       alert("Login realizado!");
       window.location.href = "index.html";
       // Depois do login bem-sucedido
-fetch("/api/usuarios/online", {
+fetch("https://cybermakersite-production.up.railway.app/api/usuarios/online", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ usuario_id: usuarioLogado.id })
