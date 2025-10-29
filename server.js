@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Health route for Railwaypp.get('/', (req, res) => res.send('OK'));
+// Health route for Railwayapp.get('/', (req, res) => res.send('OK'));
 
 app.use(express.json());
 app.use(cors());
@@ -33,6 +33,25 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0
 });
+
+// 🌐 Conexão com o banco de dados do Railway via variável de ambiente
+// No Railway, você criará uma variável chamada DB_POST com sua string de conexão
+const connection = mysql.createConnection(process.env.DB_POST);
+
+// Teste de conexão
+connection.connect((err) => {
+  if (err) {
+    console.error("❌ Erro ao conectar ao banco de dados:", err);
+  } else {
+    console.log("✅ Conectado ao banco de dados MySQL do Railway!");
+  }
+});
+
+// Exemplo de rota
+app.get("/", (req, res) => {
+  res.send("Servidor Node.js está rodando e conectado ao banco!");
+});
+
 
 // Serve static frontend (the site files)
 app.use(express.static(path.join(__dirname)));
