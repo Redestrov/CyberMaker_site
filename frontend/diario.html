@@ -283,7 +283,7 @@
     historico.innerHTML = "";
     if (!usuarioLogado) return;
 
-    const res = await fetch(`https://cybermakersite-production.up.railway.app/api/ideias/${usuarioLogado.id}`);
+    const res = await fetch(`https://cybermakersite-production.up.railway.app/api/ideias`);
     const ideias = await res.json();
 
     ideias.forEach(ideia => {
