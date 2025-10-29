@@ -4,20 +4,25 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import path from "path";
 import { fileURLToPath } from "url";
-//import connect from "conection.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Health route for Railwaypp.get('/', (req, res) => res.send('OK'));
+
+app.use(express.json());
+app.use(cors());
 app.use(cors());
 app.use(express.json({ limit: "10mb" })); // allow image uploads as base64
 
 // Read DB config from environment variables for deployment platforms
 const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_USER = process.env.DB_USER || "root";
-const DB_PASSWORD = process.env.DB_PASSWORD || "ooTphHt42wy49L1ywfRU";
+const DB_PASSWORD = process.env.DB_PASSWORD || "Automata";
 const DB_NAME = process.env.DB_NAME || "CyberMaker";
-const PORT = process.env.PORT || 3306;
+const PORT = process.env.PORT || 3000;
 
 const pool = mysql.createPool({
   host: DB_HOST,

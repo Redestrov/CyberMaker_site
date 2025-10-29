@@ -1,3 +1,9 @@
+// --- API base configuration: at deploy, set window.__API_URL to your Railway API URL ---
+const API_BASE = (typeof window !== 'undefined' && window.__API_URL)
+  ? window.__API_URL
+  : (location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://REPLACE_WITH_API_URL');
+// --- end config ---
+
 document.getElementById("form-registro").addEventListener("submit", async e => {
   e.preventDefault();
 
@@ -9,7 +15,7 @@ document.getElementById("form-registro").addEventListener("submit", async e => {
   // função auxiliar para enviar ao backend
   async function enviarRegistro(fotoBase64 = null) {
     try {
-      const res = await fetch("/api/registrar", {
+      const res = await fetch(`${API_BASE}/api/registrar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, email, senha, foto: fotoBase64 })
