@@ -10,17 +10,14 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Health route for Railway
+// Health route para Railway
 app.get("/", (req, res) => res.send("OK"));
-
-// Middleware
+app.use(express.json({ limit: "10mb" }));
 app.use(cors());
-app.use(express.json({ limit: "10mb" })); // Permite upload de imagens em base64
 
-// ============================
-// 🔧 CONFIGURAÇÃO DO BANCO
-// ============================
-
+// ================================
+// 🔧 Configuração do Banco de Dados
+// ================================
 let pool;
 
 if (process.env.DB_POST) {
@@ -32,7 +29,7 @@ if (process.env.DB_POST) {
       user: dbUrl.username,
       password: dbUrl.password,
       database: dbUrl.pathname.replace("/", ""),
-      port: Number(dbUrl.port) || 51980,
+      port: Number(dbUrl.port) || 3306,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -52,27 +49,22 @@ if (process.env.DB_POST) {
     user: DB_USER,
     password: DB_PASSWORD,
     database: DB_NAME,
-    port: 51980,
+    port: 3306,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
   });
 }
 
-// ============================
-// 🚀 CONFIGURAÇÃO DO SERVIDOR
-// ============================
-
+// ================================
+// 🚀 Porta do servidor HTTP
+// ================================
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname)));
 
-app.get("/api/ping", (req, res) => res.json({ ok: true }));
-
-// ============================
-// 👤 USUÁRIOS
-// ============================
-
-// Registrar
+// ================================
+// 👤 Registro de Usuário
+// ================================
 app.post("/api/registrar", async (req, res) => {
   try {
     const { nome, email, senha, foto } = req.body;
@@ -93,12 +85,14 @@ app.post("/api/registrar", async (req, res) => {
 
     res.json({ success: true, id: result.insertId });
   } catch (err) {
-    console.error("❌ Erro ao registrar usuário:", err);
+    console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-// Login
+// ================================
+// 🔐 Login
+// ================================
 app.post("/api/login", async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -121,142 +115,49 @@ app.post("/api/login", async (req, res) => {
     delete user.senha;
     res.json({ success: true, usuario: user });
   } catch (err) {
-    console.error("❌ Erro no login:", err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-// Marcar online/offline
-app.post("/api/usuarios/online", async (req, res) => {
-  try {
-    const { usuario_id } = req.body;
-    if (!usuario_id)
-      return res.status(400).json({ success: false, error: "ID ausente" });
-    await pool.query("UPDATE usuarios SET online = TRUE WHERE id = ?", [usuario_id]);
-    res.json({ success: true });
-  } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-app.post("/api/usuarios/offline", async (req, res) => {
-  try {
-    const { usuario_id } = req.body;
-    if (!usuario_id)
-      return res.status(400).json({ success: false, error: "ID ausente" });
-    await pool.query("UPDATE usuarios SET online = FALSE WHERE id = ?", [usuario_id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-// Ranking
-app.get("/api/ranking", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT id, nome, pontos, online, foto FROM usuarios ORDER BY pontos DESC LIMIT 100"
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-// ============================
-// 💡 IDEIAS (DIÁRIO / ARENA)
-// ============================
-
-app.get("/api/ideias", async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM ideias ORDER BY id DESC LIMIT 200");
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-app.get("/api/ideias/:usuario_id", async (req, res) => {
-  try {
-    const usuario_id = req.params.usuario_id;
-    const [rows] = await pool.query(
-      "SELECT * FROM ideias WHERE usuario_id = ? ORDER BY id DESC",
-      [usuario_id]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-app.post("/api/ideias", async (req, res) => {
-  try {
-    const { usuario_id, titulo, texto } = req.body;
-    if (!usuario_id || !titulo)
-      return res.status(400).json({ success: false, error: "Faltando campos" });
-
-    const [result] = await pool.query(
-      "INSERT INTO ideias (usuario_id, titulo, texto, created_at) VALUES (?, ?, ?, NOW())",
-      [usuario_id, titulo, texto || ""]
-    );
-    res.json({ success: true, id: result.insertId });
-  } catch (err) {
-    console.error("❌ Erro ao criar ideia:", err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-// ============================
-// ⚔️ CONCLUSÕES (ARENA)
-// ============================
-
-// Criar uma nova conclusão
+// ================================
+// ⚙️ Conclusões de Projetos (tabela: conclusoes)
+// ================================
 app.post("/api/conclusoes", async (req, res) => {
   try {
-    const { ideia_id, video, imagens, descricao } = req.body;
+    const { ideia, video, imagem, descricao } = req.body;
 
-    if (!ideia_id || !video || !descricao)
+    if (!ideia || !video || !descricao)
       return res.status(400).json({ success: false, error: "Campos obrigatórios faltando" });
 
+    // Cria a tabela se não existir
     await pool.query(`
       CREATE TABLE IF NOT EXISTS conclusoes (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        ideia_id INT NOT NULL,
+        ideia VARCHAR(255) NOT NULL,
         video VARCHAR(255),
-        imagens TEXT,
+        imagem TEXT,
         descricao TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ideia_id) REFERENCES ideias(id)
-      )
+        data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     const [result] = await pool.query(
-      "INSERT INTO conclusoes (ideia_id, video, imagens, descricao, created_at) VALUES (?, ?, ?, ?, NOW())",
-      [ideia_id, video, JSON.stringify(imagens || []), descricao]
+      "INSERT INTO conclusoes (ideia, video, imagem, descricao) VALUES (?, ?, ?, ?)",
+      [ideia, video, imagem, descricao]
     );
 
     res.json({ success: true, id: result.insertId });
   } catch (err) {
-    console.error("❌ Erro ao inserir conclusão:", err);
-    res.status(500).json({ success: false, error: "Erro interno do servidor" });
+    console.error("❌ Erro ao salvar conclusão:", err);
+    res.status(500).json({ success: false, error: "Erro interno ao salvar conclusão" });
   }
 });
 
-// Listar todas as conclusões
+// 📤 Listar conclusões
 app.get("/api/conclusoes", async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT c.*, i.titulo AS titulo_ideia, u.nome AS autor
-      FROM conclusoes c
-      JOIN ideias i ON c.ideia_id = i.id
-      JOIN usuarios u ON i.usuario_id = u.id
-      ORDER BY c.created_at DESC
-    `);
+    const [rows] = await pool.query("SELECT * FROM conclusoes ORDER BY data DESC");
     res.json(rows);
   } catch (err) {
     console.error("❌ Erro ao buscar conclusões:", err);
@@ -264,24 +165,9 @@ app.get("/api/conclusoes", async (req, res) => {
   }
 });
 
-// Listar conclusões de uma ideia
-app.get("/api/conclusoes/:ideia_id", async (req, res) => {
-  try {
-    const { ideia_id } = req.params;
-    const [rows] = await pool.query(
-      "SELECT * FROM conclusoes WHERE ideia_id = ? ORDER BY created_at DESC",
-      [ideia_id]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error("❌ Erro ao buscar conclusões da ideia:", err);
-    res.status(500).json({ success: false, error: "Erro interno" });
-  }
-});
-
-// ============================
-// 🏁 Fallback
-// ============================
+// ================================
+// 🌐 Rota final
+// ================================
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
