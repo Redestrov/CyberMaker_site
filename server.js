@@ -158,37 +158,6 @@ app.post("https://cybermakersite-production.up.railway.app/api/ideias", upload.s
   }
 });
 
-app.post("/api/conclusoes", async (req, res) => {
-  try {
-    const { id, video, imagens, descricao } = req.body;
-
-    if (!ideia_id || !video || !imagens || !descricao) {
-      return res.json({ success: false, error: "Campos incompletos." });
-    }
-
-    await pool.query(
-      "INSERT INTO conclusoes (ideia, video, imagem, `descrição`, data) VALUES (?, ?, ?, ?, NOW())",
-      [ideia_id, video, imagens, descricao]
-    );
-
-    await pool.query(
-      `UPDATE usuarios u 
-       JOIN ideias i ON u.id = i.usuario_id 
-       SET u.pontos = u.pontos + 30 
-       WHERE i.id = ?`,
-      [ideia_id]
-    );
-
-    res.json({ success: true });
-
-  } catch (err) {
-    console.error("Erro ao salvar conclusão:", err);
-    res.json({ success: false, error: "Erro no servidor." });
-  }
-});
-
-
-
 // ===============================
 // 🌿 COMUNIDADE (POSTS tipo Reddit)
 // ===============================
