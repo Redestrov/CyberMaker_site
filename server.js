@@ -2,9 +2,6 @@ import express from "express";
 import mysql from "mysql2/promise";
 import cors from "cors";
 import bcrypt from "bcrypt";
-import multer from "multer";
-import sharp from "sharp";
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -12,282 +9,185 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Health route for Railway
+app.get("/", (req, res) => res.send("OK"));
+
+app.use(express.json());
 app.use(cors());
-app.use(express.json({ limit: "5mb" }));
+app.use(cors());
+app.use(express.json({ limit: "10mb" })); // allow image uploads as base64
 
-// Pasta de uploads
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-// Multer (usar memória para editar / salvar)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// Conexão com banco
+// 🔧 Configuração do banco de dados
+// Se DB_POST existir, usa ele (Railway); senão usa as variáveis locais
 let pool;
+
 if (process.env.DB_POST) {
-  const dbUrl = new URL(process.env.DB_POST);
-  pool = mysql.createPool({
-    host: dbUrl.hostname,
-    user: dbUrl.username,
-    password: dbUrl.password,
-    database: dbUrl.pathname.replace("/", ""),
-    port: Number(dbUrl.port) || 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-  });
+  console.log("🌍 Usando variável DB_POST para conexão ao banco do Railway!");
+
+  try {
+    const dbUrl = new URL(process.env.DB_POST);
+
+    pool = mysql.createPool({
+      host: dbUrl.hostname,
+      user: dbUrl.username,
+      password: dbUrl.password,
+      database: dbUrl.pathname.replace("/", ""),
+      port: Number(dbUrl.port) || 51980,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    });
+  } catch (err) {
+    console.error("❌ Erro ao interpretar DB_POST:", err);
+  }
 } else {
+  console.log("💻 Usando variáveis locais para conexão ao banco!");
+
+  const DB_HOST = process.env.DB_HOST || "localhost";
+  const DB_USER = process.env.DB_USER || "root";
+  const DB_PASSWORD = process.env.DB_PASSWORD || "Automata";
+  const DB_NAME = process.env.DB_NAME || "CyberMaker";
+
   pool = mysql.createPool({
-    host: process.env.DB_HOST || "localhost",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "Automata",
-    database: process.env.DB_NAME || "CyberMaker",
-    port: 3306,
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    database: DB_NAME,
+    port: 51980,
     waitForConnections: true,
     connectionLimit: 10,
+    queueLimit: 0,
   });
 }
 
-// Servir arquivos estáticos
-app.use(express.static(__dirname));
-app.use("/uploads", express.static(uploadDir));
+// Porta do servidor HTTP (não confundir com a porta do banco)
+const PORT = process.env.PORT || 3000;
 
+// Serve static frontend (the site files)
+app.use(express.static(path.join(__dirname)));
 
-// ===============================
-// ✅ Registro (com foto de perfil)
-// ===============================
-app.post("/api/registrar", upload.single("foto"), async (req, res) => {
+app.get("/api/ping", (req, res) => res.json({ ok: true }));
+
+// Register user
+app.post("/api/registrar", async (req, res) => {
   try {
-    const { nome, email, senha } = req.body;
-
-    if (!nome || !email || !senha)
-      return res.status(400).json({ success: false, error: "Faltando campos" });
+    const { nome, email, senha, foto } = req.body;
+    if (!nome || !email || !senha) return res.status(400).json({ success: false, error: "Faltando campos" });
 
     const [rows] = await pool.query("SELECT id FROM usuarios WHERE email = ?", [email]);
-    if (rows.length > 0)
-      return res.status(400).json({ success: false, error: "Email já cadastrado" });
+    if (rows.length > 0) return res.status(400).json({ success: false, error: "Email já cadastrado" });
 
     const hash = await bcrypt.hash(senha, 10);
-
-    let fotoPath = null;
-    if (req.file) {
-      const nomeArquivo = `user_${Date.now()}.jpg`;
-      const destino = path.join(uploadDir, nomeArquivo);
-
-      await sharp(req.file.buffer)
-        .resize(256, 256, { fit: "cover" })
-        .jpeg({ quality: 70 })
-        .toFile(destino);
-
-      fotoPath = `/uploads/${nomeArquivo}`;
-    }
-
-    await pool.query(
+    const fotoVal = foto || null;
+    const [result] = await pool.query(
       "INSERT INTO usuarios (nome, email, senha, foto, pontos, online) VALUES (?, ?, ?, ?, 0, FALSE)",
-      [nome, email, hash, fotoPath]
+      [nome, email, hash, fotoVal]
     );
-
-    res.json({ success: true });
+    res.json({ success: true, id: result.insertId });
   } catch (err) {
-    console.error("Erro no registro:", err);
+    console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-
-// ===============================
-// ✅ Login
-// ===============================
+// Login
 app.post("/api/login", async (req, res) => {
   try {
     const { email, senha } = req.body;
+    if (!email || !senha) return res.status(400).json({ success: false, error: "Faltando campos" });
 
-    const [rows] = await pool.query(
-      "SELECT id, nome, email, senha, foto, pontos FROM usuarios WHERE email = ?",
-      [email]
-    );
-
-    if (rows.length === 0)
-      return res.status(400).json({ success: false, error: "Usuário não encontrado" });
+    const [rows] = await pool.query("SELECT id, nome, email, senha, foto, pontos FROM usuarios WHERE email = ?", [email]);
+    if (rows.length === 0) return res.status(400).json({ success: false, error: "Usuário não encontrado" });
 
     const user = rows[0];
-    const ok = await bcrypt.compare(senha, user.senha);
-
-    if (!ok)
-      return res.status(401).json({ success: false, error: "Senha incorreta" });
+    const match = await bcrypt.compare(senha, user.senha);
+    if (!match) return res.status(401).json({ success: false, error: "Senha incorreta" });
 
     delete user.senha;
     res.json({ success: true, usuario: user });
-
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-
-// ===============================
-// ✅ Salvar IDEIA com IMAGEM
-// ===============================
-app.post("/api/ideias", upload.single("imagem"), async (req, res) => {
+// Mark online
+app.post("/api/usuarios/online", async (req, res) => {
   try {
-    const { usuario_id, titulo, categoria, descricao } = req.body;
-
-    let imagemPath = null;
-    if (req.file) {
-      const nomeArquivo = `ideia_${Date.now()}.jpg`;
-      const destino = path.join(uploadDir, nomeArquivo);
-
-      await sharp(req.file.buffer)
-        .resize(600, 600, { fit: "cover" })
-        .jpeg({ quality: 70 })
-        .toFile(destino);
-
-      imagemPath = `/uploads/${nomeArquivo}`;
-    }
-
-    await pool.query(
-      "INSERT INTO ideias (usuario_id, titulo, categoria, descricao, imagem) VALUES (?, ?, ?, ?, ?)",
-      [usuario_id, titulo, categoria, descricao, imagemPath]
-    );
-
+    const { usuario_id } = req.body;
+    if (!usuario_id) return res.status(400).json({ success: false, error: "ID ausente" });
+    await pool.query("UPDATE usuarios SET online = TRUE WHERE id = ?", [usuario_id]);
     res.json({ success: true });
-
-  } catch (err) {
-    console.error("Erro ao salvar ideia:", err);
-    res.status(500).json({ success: false, error: "Erro ao salvar ideia" });
-  }
-});
-
-// ===============================
-// 🌿 COMUNIDADE (POSTS tipo Reddit)
-// ===============================
-
-// Criar post (com imagem opcional)
-app.post("/api/comunidade", upload.single("imagem"), async (req, res) => {
-  try {
-    const { usuario_id, titulo, texto } = req.body;
-
-    if (!usuario_id || !titulo || !texto)
-      return res.json({ success: false, error: "Campos incompletos" });
-
-    let imagemBase64 = null;
-
-    if (req.file) {
-      const buffer = await sharp(req.file.buffer)
-        .resize({ width: 800 })
-        .jpeg({ quality: 65 })
-        .toBuffer();
-
-      imagemBase64 = `data:image/jpeg;base64,${buffer.toString("base64")}`;
-    }
-
-    await pool.query(
-      "INSERT INTO comunidade_posts (usuario_id, titulo, texto, imagem) VALUES (?, ?, ?, ?)",
-      [usuario_id, titulo, texto, imagemBase64]
-    );
-
-    // +10 pontos automaticamente ao postar 🎁
-    await pool.query(
-      "UPDATE usuarios SET pontos = pontos + 10 WHERE id = ?",
-      [usuario_id]
-    );
-
-    res.json({ success: true });
-
-  } catch (err) {
-    console.error("Erro ao postar:", err);
-    res.json({ success: false, error: "Erro interno" });
-  }
-});
-
-// Listar posts (mais recentes primeiro)
-app.get("cybermakersite-production.up.railway.app/api/comunidade", async (req, res) => {
-  try {
-    const [posts] = await pool.query(
-      `SELECT comunidade_posts.*, usuarios.nome, usuarios.foto
-       FROM comunidade_posts
-       JOIN usuarios ON comunidade_posts.usuario_id = usuarios.id
-       ORDER BY comunidade_posts.data_criacao DESC`
-    );
-    res.json(posts);
   } catch (err) {
     console.error(err);
-    res.json({ success: false });
+    res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-// ===============================
-// ✅ Ranking
-// ===============================
-app.get("https://cybermakersite-production.up.railway.app/api/ranking", async (req, res) => {
+// Mark offline
+app.post("/api/usuarios/offline", async (req, res) => {
   try {
-    const [results] = await pool.query(
-      "SELECT id, nome, foto, pontos, online FROM usuarios ORDER BY pontos DESC"
-    );
-    res.json(results);
+    const { usuario_id } = req.body;
+    if (!usuario_id) return res.status(400).json({ success: false, error: "ID ausente" });
+    await pool.query("UPDATE usuarios SET online = FALSE WHERE id = ?", [usuario_id]);
+    res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: "Erro ao carregar ranking" });
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
 
-app.post("/api/ranking/pontos", async (req, res) => {
-  const { usuario_id, pontos } = req.body;
-  await pool.query("UPDATE usuarios SET pontos = ? WHERE id = ?", [pontos, usuario_id]);
-  res.json({ success: true });
+// Ranking
+app.get("/api/ranking", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, nome, pontos, online, foto FROM usuarios ORDER BY pontos DESC LIMIT 100");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
 });
 
+// Ideas (diário / arena)
+app.get("/api/ideias", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM ideias ORDER BY id DESC LIMIT 200");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
+});
 
-// ===============================
-// Fallback SPA
-// ===============================
+app.get("/api/ideias/:usuario_id", async (req, res) => {
+  try {
+    const usuario_id = req.params.usuario_id;
+    const [rows] = await pool.query("SELECT * FROM ideias WHERE usuario_id = ? ORDER BY id DESC", [usuario_id]);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
+});
+
+app.post("/api/ideias", async (req, res) => {
+  try {
+    const { usuario_id, titulo, texto } = req.body;
+    if (!usuario_id || !titulo) return res.status(400).json({ success: false, error: "Faltando campos" });
+    const [result] = await pool.query("INSERT INTO ideias (usuario_id, titulo, texto, created_at) VALUES (?, ?, ?, NOW())", [usuario_id, titulo, texto || ""]);
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
+});
+
+// Fallback para index.html
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// === COMUNIDADE: POSTAR ===
-app.post("/api/comunidade", async (req, res) => {
-  try {
-    const { usuario_id, titulo, texto, imagem } = req.body;
-
-    if (!usuario_id || !titulo || !texto) {
-      return res.json({ success: false, error: "Dados incompletos." });
-    }
-
-    await db.query(
-      "INSERT INTO comunidade_posts (usuario_id, titulo, texto, imagem) VALUES (?, ?, ?, ?)",
-      [usuario_id, titulo, texto, imagem || null]
-    );
-
-    // +10 pontos ao postar
-    await db.query("UPDATE usuarios SET pontos = pontos + 10 WHERE id = ?", [usuario_id]);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("ERR POSTAR COMUNIDADE:", err);
-    res.json({ success: false, error: "Erro interno." });
-  }
+app.listen(PORT, () => {
+  console.log("🚀 Servidor rodando na porta", PORT);
 });
-
-// === COMUNIDADE: CARREGAR FEED ===
-app.get("ybermakersite-production.up.railway.appc/api/comunidade", async (req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT p.id, p.titulo, p.texto, p.imagem, p.data_criacao,
-             u.nome AS autor_nome, u.foto AS autor_foto
-      FROM comunidade_posts p
-      JOIN usuarios u ON p.usuario_id = u.id
-      ORDER BY p.data_criacao DESC
-    `);
-
-    res.json(rows);
-  } catch (err) {
-    console.error("ERR FEED COMUNIDADE:", err);
-    res.json({ success: false, error: "Erro interno." });
-  }
-});
-
-// ===============================
-// Iniciar Servidor
-// ===============================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✨ Servidor online na porta ${PORT}!`));
