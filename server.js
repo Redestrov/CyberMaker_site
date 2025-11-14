@@ -195,15 +195,15 @@ app.listen(PORT, () => {
 // Salvar conclusão da arena
 app.post("/api/conclusoes", async (req, res) => {
   try {
-    const { id, video, imagem, descricao } = req.body;
+    const { id, video, imagem, descrição } = req.body;
 
-    if (!id || !video || !imagem || !descricao) {
+    if (!id || !video || !imagem || !descrição) {
       return res.status(400).json({ success: false, error: "Campos incompletos" });
     }
 
     const [result] = await pool.query(
-      "INSERT INTO conclusoes (ideia, video, imagem, descricao, data) VALUES (?, ?, ?, ?, NOW())",
-      [id, video, imagem, descricao]
+      "INSERT INTO conclusoes (ideia, video, imagem, descrição, data) VALUES (?, ?, ?, ?, NOW())",
+      [id, video, imagem, descrição]
     );
 
     res.json({ success: true, id: result.insertId });
