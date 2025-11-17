@@ -183,6 +183,20 @@ app.post("/api/ideias", async (req, res) => {
   }
 });
 
+//histórico de conclusões
+app.get("/api/historico", async (req, res) => {
+  try {
+    const [dados] = await db.execute(
+      "SELECT * FROM conclusoes ORDER BY data DESC"
+    );
+    res.json(dados);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Falha ao buscar histórico" });
+  }
+});
+
+
 // Fallback para index.html
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
@@ -214,4 +228,3 @@ app.post("/api/conclusoes", async (req, res) => {
     res.status(500).json({ success: false, error: "Erro interno no servidor" });
   }
 });
-
