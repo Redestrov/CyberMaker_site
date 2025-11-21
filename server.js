@@ -214,10 +214,10 @@ app.post("/api/ideias", async (req, res) => {
   }
 });
 
-//histórico de conclusões
+// histórico de conclusões
 app.get("/api/historico", async (req, res) => {
   try {
-    const [dados] = await db.execute(
+    const [dados] = await pool.query(
       "SELECT * FROM conclusoes ORDER BY data DESC"
     );
     res.json(dados);
@@ -226,6 +226,7 @@ app.get("/api/historico", async (req, res) => {
     res.status(500).json({ erro: "Falha ao buscar histórico" });
   }
 });
+
 
 
 // Fallback para index.html
