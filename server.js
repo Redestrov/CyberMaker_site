@@ -141,13 +141,44 @@ app.post("/api/usuarios/offline", async (req, res) => {
 // Ranking
 app.get("/api/ranking", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT id, nome, pontos, online, foto FROM usuarios ORDER BY pontos DESC LIMIT 100");
-    res.json(rows);
+    const [rows] = await pool.query("SELECT id, nome, foto, pontos FROM usuarios ORDER BY pontos DESC LIMIT 100");
+    res.json({ success: true, ranking: rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
+
+// ROTA: adicionar pontos ao concluir uma tarefa
+app.post("/api/concluir", async (req, res) => {
+  try {
+    const { usuario_id } = req.body;
+    if (!usuario_id) return res.status(400).json({ success: false, error: "ID ausente" });
+
+    // Garante que pontos não sejam NULL e soma 1000
+    const sqlUpdate = `
+      UPDATE usuarios
+      SET pontos = COALESCE(pontos, 0) + 1000
+      WHERE id = ?
+    `;
+    const [result] = await pool.query(sqlUpdate, [usuario_id]);
+
+    // Opcional: verifica se a linha foi alterada
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: "Usuário não encontrado" });
+    }
+
+    // Retorna o usuário atualizado (id, nome, pontos)
+    const [rows] = await pool.query("SELECT id, nome, pontos, foto FROM usuarios WHERE id = ?", [usuario_id]);
+    const usuario = rows[0] || null;
+
+    res.json({ success: true, usuario });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
+});
+
 
 // Ideas (diário / arena)
 app.get("/api/ideias", async (req, res) => {
