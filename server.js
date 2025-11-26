@@ -141,13 +141,44 @@ app.post("/api/usuarios/offline", async (req, res) => {
 // Ranking
 app.get("/api/ranking", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT id, nome, pontos, online, foto FROM usuarios ORDER BY pontos DESC LIMIT 100");
-    res.json(rows);
+    const [rows] = await pool.query("SELECT id, nome, foto, pontos FROM usuarios ORDER BY pontos DESC LIMIT 100");
+    res.json({ success: true, ranking: rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Erro interno" });
   }
 });
+
+// ROTA: adicionar pontos ao concluir uma tarefa
+app.post("/api/concluir", async (req, res) => {
+  try {
+    const { usuario_id } = req.body;
+    if (!usuario_id) return res.status(400).json({ success: false, error: "ID ausente" });
+
+    // Garante que pontos não sejam NULL e soma 1000
+    const sqlUpdate = `
+      UPDATE usuarios
+      SET pontos = COALESCE(pontos, 0) + 1000
+      WHERE id = ?
+    `;
+    const [result] = await pool.query(sqlUpdate, [usuario_id]);
+
+    // Opcional: verifica se a linha foi alterada
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: "Usuário não encontrado" });
+    }
+
+    // Retorna o usuário atualizado (id, nome, pontos)
+    const [rows] = await pool.query("SELECT id, nome, pontos, foto FROM usuarios WHERE id = ?", [usuario_id]);
+    const usuario = rows[0] || null;
+
+    res.json({ success: true, usuario });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Erro interno" });
+  }
+});
+
 
 // Ideas (diário / arena)
 app.get("/api/ideias", async (req, res) => {
@@ -183,6 +214,20 @@ app.post("/api/ideias", async (req, res) => {
   }
 });
 
+//histórico de conclusões
+app.get("/api/historico", async (req, res) => {
+  try {
+    const [dados] = await db.execute(
+      "SELECT * FROM conclusoes ORDER BY data DESC"
+    );
+    res.json(dados);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Falha ao buscar histórico" });
+  }
+});
+
+
 // Fallback para index.html
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
@@ -190,4 +235,27 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log("🚀 Servidor rodando na porta", PORT);
+});
+
+
+// Salvar conclusão da arena
+app.post("/api/conclusoes", async (req, res) => {
+  try {
+    const { ideia, video, imagem, descrição } = req.body;
+
+    if (!ideia || !video || !imagem || !descrição) {
+      return res.status(400).json({ success: false, error: "Campos incompletos" });
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO conclusoes (ideia, video, imagem, descrição, data) VALUES (?, ?, ?, ?, NOW())",
+      [ideia, video, imagem, descrição]
+    );
+
+    res.json({ success: true, id: result.insertId });
+
+  } catch (err) {
+    console.error("Erro ao salvar conclusão:", err);
+    res.status(500).json({ success: false, error: "Erro interno no servidor" });
+  }
 });
