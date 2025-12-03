@@ -54,7 +54,7 @@ if (process.env.DB_POST) {
     user: DB_USER,
     password: DB_PASSWORD,
     database: DB_NAME,
-    port: 51980,
+    port: 51264,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
