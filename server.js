@@ -204,9 +204,9 @@ app.get("/api/ideias/:usuario_id", async (req, res) => {
 
 app.post("/api/ideias", async (req, res) => {
   try {
-    const { usuario_id, titulo, categoria, descricao } = req.body;
+    const { usuario_id, titulo, texto } = req.body;
     if (!usuario_id || !titulo) return res.status(400).json({ success: false, error: "Faltando campos" });
-    const [result] = await pool.query("INSERT INTO ideias (usuario_id, titulo, categoria, descricao, created_at) VALUES (?, ?, ?, NOW())", [usuario_id, titulo, texto || ""]);
+    const [result] = await pool.query("INSERT INTO ideias (usuario_id, titulo, texto, created_at) VALUES (?, ?, ?, NOW())", [usuario_id, titulo, texto || ""]);
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error(err);
