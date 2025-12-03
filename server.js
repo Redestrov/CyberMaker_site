@@ -69,11 +69,23 @@ app.use(express.static(path.join(__dirname)));
 
 app.get("/api/ping", (req, res) => res.json({ ok: true }));
 
+// Validação de força de senha
+function isStrongPassword(senha) {
+  // Mínimo 8 caracteres, pelo menos uma letra minúscula, uma maiúscula, um número e um caractere especial
+  const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+  return re.test(senha);
+}
+
 // Register user
 app.post("/api/registrar", async (req, res) => {
   try {
     const { nome, email, senha, foto } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ success: false, error: "Faltando campos" });
+
+    // Verifica força da senha
+    if (!isStrongPassword(senha)) {
+      return res.status(400).json({ success: false, error: "Senha fraca" });
+    }
 
     const [rows] = await pool.query("SELECT id FROM usuarios WHERE email = ?", [email]);
     if (rows.length > 0) return res.status(400).json({ success: false, error: "Email já cadastrado" });
